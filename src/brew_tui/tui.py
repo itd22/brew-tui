@@ -184,7 +184,19 @@ class BrewTUIApp(App):
         height: 12;
         border: solid $accent;
     }
+    #busy-indicator {
+        width: auto;
+        padding: 0 1;
+        color: $text-muted;
+    }
+    #busy-indicator.-busy {
+        color: $warning;
+        text-style: bold;
+    }
     """
+
+    # how often (seconds) the busy indicator polls the real Homebrew lock files
+    BUSY_POLL_INTERVAL = 2.0
 
     BINDINGS = [
         Binding("i", "focus_install", "Install"),
@@ -207,6 +219,7 @@ class BrewTUIApp(App):
                 yield Button("Install", id="install-btn", variant="success")
                 yield Button("Uninstall", id="uninstall-btn", variant="error")
                 yield Button("Refresh", id="refresh-btn", variant="primary")
+                yield Static("● idle", id="busy-indicator")
             yield DataTable(id="package-table")
             yield Static("Output", id="output-label")
             yield RichLog(id="output-log", wrap=True, markup=True, max_lines=2000)
@@ -217,6 +230,9 @@ class BrewTUIApp(App):
         table.cursor_type = "row"
         table.add_columns("Name", "Version", "Method", "Tap", "Status")
         self.action_refresh_packages()
+        # Poll the real Homebrew lock files periodically so the busy indicator
+        # and per-row status reflect a `brew` process running outside this TUI too.
+        self.set_interval(self.BUSY_POLL_INTERVAL, self._poll_busy)
 
     # --- package table ---
 
@@ -231,8 +247,48 @@ class BrewTUIApp(App):
         table = self.query_one("#package-table", DataTable)
         table.clear()
         for info in self._synced_packages():
-            table.add_row(info.name, info.version, info.method, info.tap, "installed", key=info.name)
+            status_text = "busy" if self.controller.status.is_installing(info.name) else "installed"
+            table.add_row(info.name, info.version, info.method, info.tap, status_text, key=info.name)
         self._log(f"refreshed: {table.row_count} package(s) in the Cellar")
+        self._update_busy_indicator()
+
+    # --- busy indicator: reflects the real Homebrew per-formula lock files ---
+
+    def _busy_formula_names(self) -> list[str]:
+        """Every formula name currently visible in the table, plus whatever is
+        typed into the formula-name input (so a not-yet-installed formula that's
+        mid-`brew install` still shows up as busy)."""
+        table = self.query_one("#package-table", DataTable)
+        names = {str(key.value) for key in table.rows} if table.rows else set()
+        typed = self.query_one("#formula-input", Input).value.strip()
+        if typed:
+            names.add(typed)
+        return sorted(names)
+
+    def _poll_busy(self) -> None:
+        """Re-checks real `brew` lock files and refreshes the busy indicator plus
+        the per-row Status column, so a `brew` process running outside this TUI
+        (e.g. from another terminal) is also reflected."""
+        table = self.query_one("#package-table", DataTable)
+        for row_key in list(table.rows):
+            formula_name = str(row_key.value)
+            current_status = str(table.get_row(row_key)[4])
+            # Don't clobber an error status set elsewhere; only toggle busy/installed.
+            if current_status not in ("busy", "installed"):
+                continue
+            busy = self.controller.status.is_installing(formula_name)
+            table.update_cell(row_key, "Status", "busy" if busy else "installed")
+        self._update_busy_indicator()
+
+    def _update_busy_indicator(self) -> None:
+        indicator = self.query_one("#busy-indicator", Static)
+        busy_names = [n for n in self._busy_formula_names() if self.controller.status.is_installing(n)]
+        if busy_names:
+            indicator.update(f"● busy ({', '.join(busy_names)})")
+            indicator.add_class("-busy")
+        else:
+            indicator.update("● idle")
+            indicator.remove_class("-busy")
 
     def action_focus_install(self) -> None:
         self.query_one("#formula-input", Input).focus()
