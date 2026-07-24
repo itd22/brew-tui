@@ -8,7 +8,7 @@ after an upgrade, before `brew cleanup`). `BrewDB.sync_from_cellar` must collaps
 those to one row instead of trying to INSERT the same primary key twice. No docker
 needed — this exercises `sync_from_cellar` directly against a throwaway sqlite file.
 """
-from brew_tui.db import BrewDB, InstalledPackageInfo
+from brew_tui.db import BrewDB, InstalledPackageInfo, dedupe_infos_by_name
 
 
 def test_sync_from_cellar_dedupes_same_name_on_fresh_db(tmp_path):
@@ -30,6 +30,33 @@ def test_sync_from_cellar_dedupes_same_name_on_fresh_db(tmp_path):
     assert len(rows) == 1
     assert rows[0].version == "14.1.0"
     assert rows[0].status == "installed"
+
+
+def test_dedupe_infos_by_name_collapses_duplicates_last_wins():
+    """Same helper the TUI's package table now uses before building rows — without
+    it, `table.add_row(..., key=info.name)` would raise Textual's DuplicateKey for
+    the same reason sync_from_cellar used to raise sqlite's IntegrityError."""
+    infos = [
+        InstalledPackageInfo(name="ripgrep", version="13.0.0"),
+        InstalledPackageInfo(name="jq", version="1.7"),
+        InstalledPackageInfo(name="ripgrep", version="14.1.0"),
+    ]
+
+    deduped = dedupe_infos_by_name(infos)
+
+    assert sorted(info.name for info in deduped) == ["jq", "ripgrep"]
+    assert len(deduped) == 2
+    ripgrep = next(info for info in deduped if info.name == "ripgrep")
+    assert ripgrep.version == "14.1.0"
+
+
+def test_dedupe_infos_by_name_no_duplicates_is_unchanged():
+    infos = [
+        InstalledPackageInfo(name="jq", version="1.7"),
+        InstalledPackageInfo(name="ripgrep", version="14.1.0"),
+    ]
+
+    assert dedupe_infos_by_name(infos) == infos
 
 
 def test_sync_from_cellar_dedupes_same_name_on_existing_row(tmp_path):

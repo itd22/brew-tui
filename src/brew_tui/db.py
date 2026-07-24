@@ -47,6 +47,26 @@ class InstalledPackageInfo:
         return "bottle" if self.poured_from_bottle else "compilation"
 
 
+def dedupe_infos_by_name(infos: list[InstalledPackageInfo]) -> list[InstalledPackageInfo]:
+    """Collapses scan results to one entry per formula name (last one wins).
+
+    A formula can (briefly) have more than one version directory in the real
+    Cellar — e.g. right after an upgrade, before `brew cleanup` removes the old
+    keg — so RealCellarReader.scan() can return two InstalledPackageInfo with the
+    same `name`. Any caller that keys off `name` (sync_from_cellar's DB upsert,
+    the TUI's package table rows, ...) needs this first, or it'll fail on the
+    duplicate: sync_from_cellar would try to INSERT the same primary key twice
+    (sqlite IntegrityError), and the TUI's DataTable would try to add_row() the
+    same row key twice (Textual DuplicateKey).
+    """
+    by_name: dict[str, InstalledPackageInfo] = {}
+    for info in infos:
+        by_name[info.name] = info
+    return list(by_name.values())
+
+
+
+
 class RealCellarReader:
     """Reads actual Homebrew/Linuxbrew INSTALL_RECEIPT.json files from the Cellar."""
 
@@ -106,19 +126,7 @@ class BrewDB:
         """Reconciles the DB with real Cellar state. Removed packages KEEP their row
         (status='removed'); nothing is ever deleted from the table."""
         now = datetime.now(timezone.utc)
-
-        # A formula can (briefly) have more than one version directory in the real
-        # Cellar — e.g. right after an upgrade, before `brew cleanup` removes the old
-        # keg — so RealCellarReader.scan() can return two InstalledPackageInfo with
-        # the same `name`. Without collapsing that here, the loop below would try to
-        # INSERT two PackageRecord rows sharing the same primary key and blow up with
-        # "IntegrityError: UNIQUE constraint failed: packages.name". Last one wins
-        # (scan() sorts version dirs, so that's normally the newest).
-        infos_by_name: dict[str, InstalledPackageInfo] = {}
-        for info in infos:
-            infos_by_name[info.name] = info
-        infos = list(infos_by_name.values())
-
+        infos = dedupe_infos_by_name(infos)
         current_names = {info.name for info in infos}
         added, updated, removed = [], [], []
 

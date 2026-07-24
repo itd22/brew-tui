@@ -7,7 +7,7 @@ from .installer import (
     InstallPolicy, NoBottleError, BottleAvailabilityChecker, PolicyEnforcedInstaller,
     make_formula_installer,
 )
-from .db import BrewDB, RealCellarReader
+from .db import BrewDB, RealCellarReader, dedupe_infos_by_name
 from .cli_runner import BrewCLIRunner
 
 
@@ -110,7 +110,7 @@ class RealListCommand(Command):
         self.db = db
 
     def run(self, args: ParsedArgs) -> int:
-        infos = self.reader.scan()
+        infos = dedupe_infos_by_name(self.reader.scan())
         if not self.db.exists():
             self.db.create_schema()
         added, updated, removed = self.db.sync_from_cellar(infos)

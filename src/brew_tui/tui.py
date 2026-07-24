@@ -31,7 +31,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Footer, Header, Input, RichLog, Static
 
-from .db import BrewDB, RealCellarReader
+from .db import BrewDB, RealCellarReader, dedupe_infos_by_name
 from .cli_runner import BrewCLIRunner
 from .status import Status
 from .keg import Cellar
@@ -249,7 +249,7 @@ class BrewTUIApp(App):
     def _synced_packages(self):
         if not self.controller.db.exists():
             self.controller.db.create_schema()
-        infos = self.controller.reader.scan()
+        infos = dedupe_infos_by_name(self.controller.reader.scan())
         self.controller.db.sync_from_cellar(infos)
         return infos
 
