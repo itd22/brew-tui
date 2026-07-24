@@ -106,6 +106,19 @@ class BrewDB:
         """Reconciles the DB with real Cellar state. Removed packages KEEP their row
         (status='removed'); nothing is ever deleted from the table."""
         now = datetime.now(timezone.utc)
+
+        # A formula can (briefly) have more than one version directory in the real
+        # Cellar — e.g. right after an upgrade, before `brew cleanup` removes the old
+        # keg — so RealCellarReader.scan() can return two InstalledPackageInfo with
+        # the same `name`. Without collapsing that here, the loop below would try to
+        # INSERT two PackageRecord rows sharing the same primary key and blow up with
+        # "IntegrityError: UNIQUE constraint failed: packages.name". Last one wins
+        # (scan() sorts version dirs, so that's normally the newest).
+        infos_by_name: dict[str, InstalledPackageInfo] = {}
+        for info in infos:
+            infos_by_name[info.name] = info
+        infos = list(infos_by_name.values())
+
         current_names = {info.name for info in infos}
         added, updated, removed = [], [], []
 
@@ -117,6 +130,7 @@ class BrewDB:
                 if record is None:
                     record = PackageRecord(name=info.name, first_seen_at=now)
                     session.add(record)
+                    existing[info.name] = record
                     added.append(info.name)
                 elif record.status != "installed" or record.version != info.version:
                     updated.append(info.name)

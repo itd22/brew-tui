@@ -1,0 +1,49 @@
+"""Regression test for the first-`brew-tui list` IntegrityError:
+
+    IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: packages.name
+
+`RealCellarReader.scan()` can return two `InstalledPackageInfo` for the same formula
+name when the real Cellar has more than one version directory for it (e.g. right
+after an upgrade, before `brew cleanup`). `BrewDB.sync_from_cellar` must collapse
+those to one row instead of trying to INSERT the same primary key twice. No docker
+needed — this exercises `sync_from_cellar` directly against a throwaway sqlite file.
+"""
+from brew_tui.db import BrewDB, InstalledPackageInfo
+
+
+def test_sync_from_cellar_dedupes_same_name_on_fresh_db(tmp_path):
+    db = BrewDB(tmp_path / "brew.db")
+    db.create_schema()
+
+    infos = [
+        InstalledPackageInfo(name="ripgrep", version="13.0.0", poured_from_bottle=True),
+        InstalledPackageInfo(name="ripgrep", version="14.1.0", poured_from_bottle=True),
+    ]
+
+    added, updated, removed = db.sync_from_cellar(infos)  # must not raise IntegrityError
+
+    assert added == ["ripgrep"]
+    assert updated == []
+    assert removed == []
+
+    rows = [r for r in db.all_packages() if r.name == "ripgrep"]
+    assert len(rows) == 1
+    assert rows[0].version == "14.1.0"
+    assert rows[0].status == "installed"
+
+
+def test_sync_from_cellar_dedupes_same_name_on_existing_row(tmp_path):
+    db = BrewDB(tmp_path / "brew.db")
+    db.create_schema()
+    db.sync_from_cellar([InstalledPackageInfo(name="ripgrep", version="13.0.0")])
+
+    added, updated, removed = db.sync_from_cellar([
+        InstalledPackageInfo(name="ripgrep", version="13.0.0"),
+        InstalledPackageInfo(name="ripgrep", version="14.1.0"),
+    ])
+
+    assert added == []
+    assert updated == ["ripgrep"]
+    rows = [r for r in db.all_packages() if r.name == "ripgrep"]
+    assert len(rows) == 1
+    assert rows[0].version == "14.1.0"
