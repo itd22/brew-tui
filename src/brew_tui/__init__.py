@@ -16,7 +16,7 @@ from .status import LockInfo, Status
 from .tui import BrewTUI, BrewTUIApp
 from .e2e import BrewE2E
 
-__version__ = "0.0.7"
+__version__ = "0.0.8"
 
 __all__ = [
     "PackageState",

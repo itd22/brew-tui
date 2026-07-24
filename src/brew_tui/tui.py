@@ -195,8 +195,11 @@ class BrewTUIApp(App):
     }
     """
 
-    # how often (seconds) the busy indicator polls the real Homebrew lock files
-    BUSY_POLL_INTERVAL = 2.0
+    # busy-indicator poll interval (seconds) while a real lock is confirmed held;
+    # configurable per instance, clamped to this range
+    BUSY_POLL_INTERVAL_MIN = 1.0
+    BUSY_POLL_INTERVAL_MAX = 5.0
+    BUSY_POLL_INTERVAL_DEFAULT = 2.0
 
     BINDINGS = [
         Binding("i", "focus_install", "Install"),
@@ -205,11 +208,18 @@ class BrewTUIApp(App):
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self, controller: "BrewTUI | None" = None) -> None:
+    def __init__(self, controller: "BrewTUI | None" = None,
+                 busy_poll_interval: float = BUSY_POLL_INTERVAL_DEFAULT) -> None:
         super().__init__()
         self.controller = controller or BrewTUI.default(quiet=True)
         self.controller.quiet = True
         self.controller.on_output = self._threadsafe_log
+        self.busy_poll_interval = self._clamp_poll_interval(busy_poll_interval)
+        self._busy_timer = None  # Timer | None — only ever runs while a lock is held
+
+    @classmethod
+    def _clamp_poll_interval(cls, seconds: float) -> float:
+        return min(max(seconds, cls.BUSY_POLL_INTERVAL_MIN), cls.BUSY_POLL_INTERVAL_MAX)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -230,9 +240,9 @@ class BrewTUIApp(App):
         table.cursor_type = "row"
         table.add_columns("Name", "Version", "Method", "Tap", "Status")
         self.action_refresh_packages()
-        # Poll the real Homebrew lock files periodically so the busy indicator
-        # and per-row status reflect a `brew` process running outside this TUI too.
-        self.set_interval(self.BUSY_POLL_INTERVAL, self._poll_busy)
+        # No continuous polling here: the busy indicator only checks the real lock
+        # file when the user starts typing a formula name, and self-schedules
+        # polling only for as long as that lock is actually held (see below).
 
     # --- package table ---
 
@@ -250,45 +260,74 @@ class BrewTUIApp(App):
             status_text = "busy" if self.controller.status.is_installing(info.name) else "installed"
             table.add_row(info.name, info.version, info.method, info.tap, status_text, key=info.name)
         self._log(f"refreshed: {table.row_count} package(s) in the Cellar")
-        self._update_busy_indicator()
-
-    # --- busy indicator: reflects the real Homebrew per-formula lock files ---
-
-    def _busy_formula_names(self) -> list[str]:
-        """Every formula name currently visible in the table, plus whatever is
-        typed into the formula-name input (so a not-yet-installed formula that's
-        mid-`brew install` still shows up as busy)."""
-        table = self.query_one("#package-table", DataTable)
-        names = {str(key.value) for key in table.rows} if table.rows else set()
+        # A refresh isn't "starting to type a command", so just reflect the
+        # currently-typed name (if any) once, without starting a poll loop.
         typed = self.query_one("#formula-input", Input).value.strip()
-        if typed:
-            names.add(typed)
-        return sorted(names)
+        self._set_busy_indicator(self._check_busy(typed), typed)
 
-    def _poll_busy(self) -> None:
-        """Re-checks real `brew` lock files and refreshes the busy indicator plus
-        the per-row Status column, so a `brew` process running outside this TUI
-        (e.g. from another terminal) is also reflected."""
-        table = self.query_one("#package-table", DataTable)
-        for row_key in list(table.rows):
-            formula_name = str(row_key.value)
-            current_status = str(table.get_row(row_key)[4])
-            # Don't clobber an error status set elsewhere; only toggle busy/installed.
-            if current_status not in ("busy", "installed"):
-                continue
-            busy = self.controller.status.is_installing(formula_name)
-            table.update_cell(row_key, "Status", "busy" if busy else "installed")
-        self._update_busy_indicator()
+    # --- busy indicator: reflects the real Homebrew per-formula lock file ---
+    #
+    # Design: no background polling by default. A real lock-file check only
+    # happens (a) when the user starts typing a formula name, and (b) right
+    # before a command is actually sent to `brew`. If that check finds a live
+    # lock, a short-lived timer keeps re-checking (at `busy_poll_interval`,
+    # clamped 1s-5s) until the lock clears, then stops itself. If the check
+    # finds nothing locked, no polling happens at all.
 
-    def _update_busy_indicator(self) -> None:
+    def _set_busy_indicator(self, busy: bool, name: str = "") -> None:
         indicator = self.query_one("#busy-indicator", Static)
-        busy_names = [n for n in self._busy_formula_names() if self.controller.status.is_installing(n)]
-        if busy_names:
-            indicator.update(f"● busy ({', '.join(busy_names)})")
+        if busy:
+            indicator.update(f"● busy ({name})" if name else "● busy")
             indicator.add_class("-busy")
         else:
             indicator.update("● idle")
             indicator.remove_class("-busy")
+
+    def _start_busy_polling(self) -> None:
+        if self._busy_timer is None:
+            self._busy_timer = self.set_interval(self.busy_poll_interval, self._poll_busy)
+
+    def _stop_busy_polling(self) -> None:
+        if self._busy_timer is not None:
+            self._busy_timer.stop()
+            self._busy_timer = None
+
+    def _check_busy(self, name: str) -> bool:
+        """One real lock-file check for `name`. Never schedules polling itself."""
+        return bool(name) and self.controller.status.is_installing(name)
+
+    def _refresh_busy_indicator(self, name: str) -> bool:
+        """Checks `name` once, updates the indicator, and starts/stops the poll
+        timer to match. Returns whether `name` is currently busy."""
+        busy = self._check_busy(name)
+        self._set_busy_indicator(busy, name)
+        if busy:
+            self._start_busy_polling()
+        else:
+            self._stop_busy_polling()
+        return busy
+
+    def _poll_busy(self) -> None:
+        """Only fires while `_busy_timer` is running, i.e. a lock was last seen
+        held. Stops itself the moment the lock clears."""
+        name = self.query_one("#formula-input", Input).value.strip()
+        if not self._check_busy(name):
+            self._set_busy_indicator(False)
+            self._stop_busy_polling()
+            return
+        self._set_busy_indicator(True, name)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Kicks off the busy check as soon as the user starts typing a formula
+        name; clears/stops polling once the field is emptied again."""
+        if event.input.id != "formula-input":
+            return
+        name = event.value.strip()
+        if not name:
+            self._stop_busy_polling()
+            self._set_busy_indicator(False)
+            return
+        self._refresh_busy_indicator(name)
 
     def action_focus_install(self) -> None:
         self.query_one("#formula-input", Input).focus()
@@ -319,6 +358,12 @@ class BrewTUIApp(App):
         if not name:
             self._log("[bold red]enter a formula name first[/bold red]")
             return
+
+        # Check-before-send: one last real lock-file check right as the command
+        # is about to go out, so the indicator (and any brief poll it kicks off)
+        # is accurate even if nothing was typed slowly enough to trigger it above.
+        if self._refresh_busy_indicator(name):
+            self._log(f"[bold yellow]{name}: a lock is currently held — brew-tui will wait for it to clear[/bold yellow]")
 
         if event.button.id == "install-btn":
             self._log(f"--- install {name} ---")
