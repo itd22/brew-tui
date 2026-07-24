@@ -1,0 +1,19 @@
+# infrastructure/docker-compose.yml
+#
+# Build/run from the repo root (context: ../ so both src/ and infrastructure/ are visible):
+#   docker compose -f infrastructure/docker-compose.yml build
+#   docker compose -f infrastructure/docker-compose.yml run --name brew-tui-dev brew-tui
+
+services:
+  brew-tui:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/Dockerfile
+    image: brew-tui:base
+    stdin_open: true
+    tty: true
+    volumes:
+      - brew-tui-data:/home/tester/BrewTuiData
+
+volumes:
+  brew-tui-data:

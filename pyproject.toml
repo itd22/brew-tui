@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "brew-tui"
-version = "0.0.2"
+version = "0.0.4"
 description = "Interactive terminal front-end over a real Homebrew install, lock-guarded by Status."
 readme = { text = "brew-tui: interactive front-end over a real Homebrew Cellar, guarded by a real lock-file Status check before every install/uninstall.", content-type = "text/plain" }
 requires-python = ">=3.11"
