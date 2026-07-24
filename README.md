@@ -1,16 +1,25 @@
-# brew-tui — v0.0.1
+# brew-tui 
 
-Domain model + docs for `brew-tui`, an interactive front-end over Homebrew's real
+`brew-tui`, an interactive front-end over Homebrew's real
 Cellar/lock/`brew` executable, extending the base Homebrew entity model with:
 
 - **`Status`** — checks the real per-formula Homebrew lock file and tells you whether
   it's live or stale.
 - **`BrewTUI`** — the `brew-tui` entry point; uses `Status` to refuse or proceed with
   `install`/`uninstall` depending on whether an install is already in progress.
+## DB file
+
+default:
+
+~/.brew_e2e/brew.db
+
+
+user defined:
+
+HOMEBREW_DB_PATH env var,
 
 ## Contents
 
-- `model.md` — full domain model (Python, structure only) including `Status` and `BrewTUI`.
 - `docs/FLOW.md` — step-by-step entity flow for `brew-tui`, `brew-tui install ripgrep`,
   and `brew-tui uninstall ripgrep`.
 
