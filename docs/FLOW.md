@@ -2,6 +2,14 @@
 
 Diagrams below are standard UML (sequence + class) expressed in Mermaid syntax.
 
+> As of 0.0.6, `brew-tui` (no args) launches `BrewTUIApp`, a full-screen interactive
+> front-end built on [Textual](https://textual.textualize.io/). `BrewTUIApp` is a thin
+> widget layer (package table, formula input, Install/Uninstall/Refresh buttons, a
+> live output log) that drives the `BrewTUI` class documented below — the business
+> logic and its `Status`/`RealCellarReader`/`BrewDB`/`BrewCLIRunner` collaborators are
+> unchanged. `BrewTUI().run(argv)` still works standalone for scripted/CI use
+> (`brew-tui install <name>`, `uninstall <name>`, `list`).
+
 ## Class diagram — entities involved in install/uninstall
 
 ```mermaid
