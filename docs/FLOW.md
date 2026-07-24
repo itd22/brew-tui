@@ -1,65 +1,201 @@
-# `brew-tui` — Command Flow Between Entities (v0.0.1)
+# `brew-tui` — UML Flow Diagrams
 
-## Entities involved
+Diagrams below are standard UML (sequence + class) expressed in Mermaid syntax.
 
-| Entity | Role |
-|---|---|
-| `BrewTUI` | Entry point for `brew-tui`. Parses argv, guards every install/uninstall through `Status` first. |
-| `Status` | Reads the **real** Homebrew lock file for a formula and decides if it's live or stale. |
-| `RealCellarReader` | Reads real `INSTALL_RECEIPT.json` files from the Cellar to see what's actually installed. |
-| `BrewDB` | SQLite-backed history of packages (`installed` / `removed` / `error`), synced from the Cellar. |
-| `BrewCLIRunner` | Shells out to the real `brew install` / `brew uninstall` executable and streams its output. |
+## Class diagram — entities involved in install/uninstall
 
-## `brew-tui` (no args)
+```mermaid
+classDiagram
+    class BrewTUI {
+        -RealCellarReader reader
+        -BrewDB db
+        -BrewCLIRunner cli
+        -Status status
+        +install(name) int
+        +uninstall(name) int
+        +run(argv) int
+        -_guard(name) bool
+    }
 
+    class Status {
+        -Path locks_dir
+        +STALE_AGE_SECONDS int
+        +check(formula_name) LockInfo
+        +is_stale(lock) bool
+        +is_installing(formula_name) bool
+        +clear_stale(formula_name) bool
+    }
+
+    class LockInfo {
+        +str formula_name
+        +Path path
+        +bool exists
+        +int pid
+        +datetime locked_at
+    }
+
+    class RealCellarReader {
+        -Cellar cellar
+        +scan() List~InstalledPackageInfo~
+        +find(name) InstalledPackageInfo
+    }
+
+    class BrewDB {
+        -Path db_path
+        +exists() bool
+        +create_schema()
+        +sync_from_cellar(infos) tuple
+        +mark_error(name, message)
+        +all_packages() List~PackageRecord~
+    }
+
+    class BrewCLIRunner {
+        +install(name, on_line) str
+        +uninstall(name, on_line) str
+        +list_packages() List~str~
+    }
+
+    class InstalledPackageInfo {
+        +str name
+        +str version
+        +bool poured_from_bottle
+        +method() str
+    }
+
+    class PackageRecord {
+        +str name
+        +str version
+        +str status
+        +str last_error
+    }
+
+    BrewTUI --> Status : guards every call
+    BrewTUI --> RealCellarReader : checks real Cellar
+    BrewTUI --> BrewDB : reads/syncs history
+    BrewTUI --> BrewCLIRunner : shells out to real brew
+    Status --> LockInfo : produces
+    RealCellarReader --> InstalledPackageInfo : produces
+    BrewDB --> PackageRecord : persists
 ```
-BrewTUI.run([])
-  -> prints usage, returns 1
+
+## Sequence diagram — `brew-tui` (no args)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant TUI as BrewTUI
+
+    User->>TUI: run([])
+    TUI-->>User: "usage: brew-tui <install|uninstall> <name>"
+    Note over TUI: argv empty, Status/DB/Cellar/CLI never touched
 ```
 
-No other entity is touched — argv is empty, so `BrewTUI` exits before consulting `Status`, `BrewDB`, or the Cellar.
+## Sequence diagram — `brew-tui install ripgrep`
 
-## `brew-tui install ripgrep`
+```mermaid
+sequenceDiagram
+    actor User
+    participant TUI as BrewTUI
+    participant ST as Status
+    participant DB as BrewDB
+    participant CR as RealCellarReader
+    participant CLI as BrewCLIRunner
+    participant Brew as brew (real executable)
 
+    User->>TUI: run(["install", "ripgrep"])
+    TUI->>TUI: install("ripgrep")
+    TUI->>ST: check("ripgrep")
+    ST-->>TUI: LockInfo(exists=?, pid=?, locked_at=?)
+
+    alt lock exists and is live
+        TUI-->>User: "already in progress (pid=...)" 
+        Note over TUI: return 1, stop
+    else lock exists and is stale
+        TUI->>ST: clear_stale("ripgrep")
+        ST-->>TUI: True (lock file deleted)
+    else no lock
+        Note over TUI: continue
+    end
+
+    TUI->>DB: exists() / create_schema()
+    TUI->>DB: all_packages()
+    DB-->>TUI: records
+
+    alt "ripgrep" status == installed in DB
+        TUI-->>User: "already installed per DB"
+    else not in DB
+        TUI->>CR: find("ripgrep")
+        CR-->>TUI: InstalledPackageInfo or None
+
+        alt found in real Cellar json
+            TUI->>DB: sync_from_cellar(scan())
+            TUI-->>User: "already installed per real Cellar json"
+        else not installed anywhere
+            TUI->>CLI: install("ripgrep", on_line=_print)
+            CLI->>Brew: subprocess `brew install ripgrep`
+            Brew-->>CLI: streamed stdout/stderr lines
+            CLI-->>TUI: full output or None
+
+            alt brew executable missing
+                TUI->>DB: mark_error("ripgrep", message)
+                TUI-->>User: error, return 1
+            else success
+                TUI->>DB: sync_from_cellar(scan())
+                TUI-->>User: return 0
+            end
+        end
+    end
 ```
-1. BrewTUI.run(["install", "ripgrep"])
-2. BrewTUI.install("ripgrep")
-3. BrewTUI._guard("ripgrep")
-     -> Status.check("ripgrep")
-          reads $(brew --prefix)/var/homebrew/locks/ripgrep.formula.lock
-     -> case: lock does not exist            -> guard passes, continue
-     -> case: lock exists and is stale       -> Status.clear_stale("ripgrep") deletes it, continue
-     -> case: lock exists and is live        -> abort, return 1 ("already in progress")
-4. BrewDB.exists() / create_schema()          -- ensure the sqlite db is there
-5. BrewDB.all_packages()                      -- is "ripgrep" already status="installed"?
-     -> yes: print "already installed per DB", return 0
-6. RealCellarReader.find("ripgrep")           -- double-check the real Cellar json
-     -> found: print "already installed per real Cellar json",
-               BrewDB.sync_from_cellar(...), return 0
-7. BrewCLIRunner.install("ripgrep", on_line=self._print)
-     -> runs the real `brew install ripgrep`, streaming stdout/stderr line by line
-     -> on success: BrewDB.sync_from_cellar(RealCellarReader.scan()) updates/adds the row
-     -> on failure (`brew` missing): BrewDB.mark_error("ripgrep", message), return 1
-```
 
-## `brew-tui uninstall ripgrep`
+## Sequence diagram — `brew-tui uninstall ripgrep`
 
-```
-1. BrewTUI.run(["uninstall", "ripgrep"])
-2. BrewTUI.uninstall("ripgrep")
-3. BrewTUI._guard("ripgrep")                  -- identical Status check as install
-     -> live lock -> abort, return 1
-     -> stale lock -> Status.clear_stale("ripgrep"), continue
-     -> no lock -> continue
-4. BrewDB.exists() / create_schema()
-5. RealCellarReader.find("ripgrep")
-     -> not found: print "not installed, nothing to uninstall", return 0
-6. BrewCLIRunner.uninstall("ripgrep", on_line=self._print)
-     -> runs the real `brew uninstall ripgrep`, streaming output
-     -> on success: BrewDB.sync_from_cellar(RealCellarReader.scan())
-          "ripgrep" is no longer in the Cellar scan, so its row flips to status="removed"
-          (the row itself is never deleted, per BrewDB.sync_from_cellar)
-     -> on failure (`brew` missing): BrewDB.mark_error("ripgrep", message), return 1
+```mermaid
+sequenceDiagram
+    actor User
+    participant TUI as BrewTUI
+    participant ST as Status
+    participant DB as BrewDB
+    participant CR as RealCellarReader
+    participant CLI as BrewCLIRunner
+    participant Brew as brew (real executable)
+
+    User->>TUI: run(["uninstall", "ripgrep"])
+    TUI->>TUI: uninstall("ripgrep")
+    TUI->>ST: check("ripgrep")
+    ST-->>TUI: LockInfo(exists=?, pid=?, locked_at=?)
+
+    alt lock exists and is live
+        TUI-->>User: "already in progress (pid=...)"
+        Note over TUI: return 1, stop
+    else lock exists and is stale
+        TUI->>ST: clear_stale("ripgrep")
+        ST-->>TUI: True (lock file deleted)
+    else no lock
+        Note over TUI: continue
+    end
+
+    TUI->>DB: exists() / create_schema()
+    TUI->>CR: find("ripgrep")
+    CR-->>TUI: InstalledPackageInfo or None
+
+    alt not installed
+        TUI-->>User: "not installed, nothing to uninstall"
+        Note over TUI: return 0
+    else installed
+        TUI->>CLI: uninstall("ripgrep", on_line=_print)
+        CLI->>Brew: subprocess `brew uninstall ripgrep`
+        Brew-->>CLI: streamed stdout/stderr lines
+        CLI-->>TUI: full output or None
+
+        alt brew executable missing
+            TUI->>DB: mark_error("ripgrep", message)
+            TUI-->>User: error, return 1
+        else success
+            TUI->>DB: sync_from_cellar(scan())
+            Note over DB: "ripgrep" absent from scan -> status flips to "removed" (row kept, never deleted)
+            TUI-->>User: return 0
+        end
+    end
 ```
 
 ## Why `Status` sits in front of both commands
@@ -70,7 +206,7 @@ Homebrew itself takes a real lock file per formula while it installs/uninstalls/
 `brew install` run in another terminal — died without cleaning up, that lock file can be
 left behind ("stale"). `Status` is the single place that:
 
-1. Locates that lock file for a given formula name.
+1. Locates the lock file for a given formula name.
 2. Reads an optional PID out of it and checks with `os.kill(pid, 0)` whether the owning
    process is still alive.
 3. Falls back to a file-age threshold (`STALE_AGE_SECONDS`, default 300s) when no PID is
@@ -78,6 +214,6 @@ left behind ("stale"). `Status` is the single place that:
 4. Exposes `is_installing()` (true only for a live lock) and `clear_stale()` (deletes a
    confirmed-stale lock).
 
-`BrewTUI._guard()` is the only caller of `Status` — every `install`/`uninstall` path
-passes through it before touching `BrewDB`, `RealCellarReader`, or `BrewCLIRunner`, so a
-genuinely in-progress operation can never be raced by a second `brew-tui` invocation.
+`BrewTUI._guard()` is the only caller of `Status` — every `install`/`uninstall` path goes
+through it before touching `BrewDB`, `RealCellarReader`, or `BrewCLIRunner`, so a genuinely
+in-progress operation can never be raced by a second `brew-tui` invocation.

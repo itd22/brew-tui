@@ -1,0 +1,61 @@
+import os
+import sys
+from pathlib import Path
+
+from .cli_parser import Command, ParsedArgs
+from .keg import Cellar
+from .db import BrewDB, RealCellarReader
+from .cli_runner import BrewCLIRunner
+from .commands import RealListCommand, StoreDbCommand, RealInstallCommand, ListCompareCommand
+
+
+class BrewE2E:
+    """Real, scriptable entry point, backed by the actual Homebrew/Linuxbrew Cellar on disk."""
+
+    def __init__(self, cellar_path: Path | None = None, db_path: Path | None = None) -> None:
+        self.cellar = Cellar(path=cellar_path or self._default_cellar_path())
+        self.reader = RealCellarReader(self.cellar)
+        self.db = BrewDB(db_path or self._default_db_path())
+        if not self.db.exists():
+            print(f"No database found at {self.db.db_path}, creating it")
+            self.db.create_schema()
+        self.commands: dict[str, Command] = {
+            "list": RealListCommand(self.reader, self.db),
+            "store-db": StoreDbCommand(self.reader, self.db),
+            "install": RealInstallCommand(self.reader, self.db, BrewCLIRunner()),
+            "list_compare": ListCompareCommand(self.reader, self.db, BrewCLIRunner()),
+        }
+
+    @staticmethod
+    def _default_db_path() -> Path:
+        env = os.environ.get("HOMEBREW_DB_PATH")
+        return Path(env) if env else Path.home() / ".brew_e2e" / "brew.db"
+
+    @staticmethod
+    def _default_cellar_path() -> Path:
+        env = os.environ.get("HOMEBREW_CELLAR")
+        if env:
+            return Path(env)
+        for candidate in (
+            Path("/home/linuxbrew/.linuxbrew/Cellar"),
+            Path("/opt/homebrew/Cellar"),
+            Path("/usr/local/Cellar"),
+        ):
+            if candidate.exists():
+                return candidate
+        return Path("/home/linuxbrew/.linuxbrew/Cellar")
+
+    def run(self, argv: list[str]) -> int:
+        if not argv:
+            print("usage: BrewE2E <command> [args...]")
+            return 1
+        command_name, *rest = argv
+        command = self.commands.get(command_name)
+        if command is None:
+            print(f"Unknown command: {command_name}")
+            return 1
+        return command.run(ParsedArgs(command_name=command_name, named_args=rest))
+
+
+if __name__ == "__main__":
+    sys.exit(BrewE2E().run(sys.argv[1:]))
