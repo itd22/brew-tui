@@ -94,6 +94,17 @@ class BrewTUI:
         self.db.sync_from_cellar(self.reader.scan())
         return 0
 
+    def list_installed(self) -> int:
+        """`brew-tui list`: syncs the DB from the real Cellar, then prints installed
+        formulae. Read-only, so it does not go through `Status`/`_guard`."""
+        if not self.db.exists():
+            self.db.create_schema()
+        infos = self.reader.scan()
+        self.db.sync_from_cellar(infos)
+        for info in infos:
+            self._print(f"{info.name} {info.version} [{info.method}] tap={info.tap}")
+        return 0
+
     @classmethod
     def default(cls) -> "BrewTUI":
         """Wires up real collaborators the same way `BrewE2E()` does."""
@@ -106,13 +117,15 @@ class BrewTUI:
 
     def run(self, argv: list[str]) -> int:
         if not argv:
-            self._print("usage: brew-tui <install|uninstall> <name>")
+            self._print("usage: brew-tui <install|uninstall|list> [name]")
             return 1
         command_name, *rest = argv
         if command_name == "install" and rest:
             return self.install(rest[0])
         if command_name == "uninstall" and rest:
             return self.uninstall(rest[0])
+        if command_name == "list":
+            return self.list_installed()
         self._print(f"Unknown command: {' '.join(argv)}")
         return 1
 

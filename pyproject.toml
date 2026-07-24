@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "brew-tui"
-version = "0.0.4"
+version = "0.0.5"
 description = "Interactive terminal front-end over a real Homebrew install, lock-guarded by Status."
 readme = { text = "brew-tui: interactive front-end over a real Homebrew Cellar, guarded by a real lock-file Status check before every install/uninstall.", content-type = "text/plain" }
 requires-python = ">=3.11"
@@ -16,6 +16,11 @@ dependencies = [
     "SQLAlchemy>=2.0",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+
 [project.scripts]
 brew-tui = "brew_tui.tui:main"
 
@@ -25,3 +30,9 @@ packages = ["src/brew_tui"]
 [tool.hatch.version]
 path = "src/brew_tui/__init__.py"
 pattern = "__version__ = \"(?P<version>[^\"]+)\""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "docker: real docker-backed integration test (needs --run-docker)",
+]
