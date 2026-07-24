@@ -16,4 +16,4 @@ if [ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]; then
     eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 fi
 
-exec python3 -m brew_tui.tui "$@"
+exec python3 -m brew_tui "$@"

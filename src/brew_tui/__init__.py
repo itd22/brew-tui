@@ -13,10 +13,9 @@ FormulaInstaller, Keg/Cellar, Tab) plus two additions for this project:
 
 from .enums import PackageState
 from .status import LockInfo, Status
-from .tui import BrewTUI, BrewTUIApp
 from .e2e import BrewE2E
 
-__version__ = "0.0.11"
+__version__ = "0.0.13"
 
 __all__ = [
     "PackageState",
@@ -27,3 +26,20 @@ __all__ = [
     "BrewE2E",
     "__version__",
 ]
+
+
+def __getattr__(name):
+    # BrewTUI/BrewTUIApp are lazily imported (PEP 562) instead of imported eagerly
+    # above. Importing `.tui` at package-import time would put 'brew_tui.tui' in
+    # sys.modules before `python -m brew_tui.tui` gets a chance to execute it as
+    # `__main__`, which is exactly what triggers:
+    #   RuntimeWarning: 'brew_tui.tui' found in sys.modules after import of
+    #   package 'brew_tui', but prior to execution of 'brew_tui.tui'
+    # `from brew_tui import BrewTUI` still works — it just imports `.tui` here,
+    # on first access, instead of during `import brew_tui`.
+    if name in ("BrewTUI", "BrewTUIApp"):
+        from . import tui
+        value = getattr(tui, name)
+        globals()[name] = value  # cache: subsequent lookups skip __getattr__
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
