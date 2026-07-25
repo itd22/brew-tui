@@ -112,42 +112,47 @@ sequenceDiagram
 
     User->>TUI: run(["install", "ripgrep"])
     TUI->>TUI: install("ripgrep")
+
+    Note over TUI,ST: Group G1 — Lock guard
     TUI->>ST: check("ripgrep")
     ST-->>TUI: LockInfo(exists=?, pid=?, locked_at=?)
 
-    alt lock exists and is live
-        TUI-->>User: "already in progress (pid=...)" 
+    alt T1: lock live — exists=True and pid is a running process
+        TUI-->>User: "already in progress (pid=...)"
         Note over TUI: return 1, stop
-    else lock exists and is stale
+    else T2: lock stale — exists=True but pid is dead, or file older than STALE_AGE_SECONDS
         TUI->>ST: clear_stale("ripgrep")
         ST-->>TUI: True (lock file deleted)
-    else no lock
+    else T3: no lock — exists=False
         Note over TUI: continue
     end
 
+    Note over TUI,DB: Group G2 — DB lookup
     TUI->>DB: exists() / create_schema()
     TUI->>DB: all_packages()
     DB-->>TUI: records
 
-    alt "ripgrep" status == installed in DB
+    alt T4: already installed per DB — record status == "installed"
         TUI-->>User: "already installed per DB"
-    else not in DB
+    else T5: not in DB — no "installed" record for "ripgrep"
+        Note over TUI,CR: Group G3 — Cellar fallback check
         TUI->>CR: find("ripgrep")
         CR-->>TUI: InstalledPackageInfo or None
 
-        alt found in real Cellar json
+        alt T6: found in real Cellar json — receipt exists on disk despite DB gap
             TUI->>DB: sync_from_cellar(scan())
             TUI-->>User: "already installed per real Cellar json"
-        else not installed anywhere
+        else T7: not installed anywhere — no DB record and no Cellar receipt
+            Note over TUI,Brew: Group G4 — Real brew install execution
             TUI->>CLI: install("ripgrep", on_line=_print)
             CLI->>Brew: subprocess `brew install ripgrep`
             Brew-->>CLI: streamed stdout/stderr lines
             CLI-->>TUI: full output or None
 
-            alt brew executable missing
+            alt T8: brew executable missing — subprocess raised FileNotFoundError
                 TUI->>DB: mark_error("ripgrep", message)
                 TUI-->>User: error, return 1
-            else success
+            else T9: success — brew exited 0
                 TUI->>DB: sync_from_cellar(scan())
                 TUI-->>User: return 0
             end
@@ -169,6 +174,8 @@ sequenceDiagram
 
     User->>TUI: run(["uninstall", "ripgrep"])
     TUI->>TUI: uninstall("ripgrep")
+
+    Note over TUI,ST: Group G1 — Lock guard
     TUI->>ST: check("ripgrep")
     ST-->>TUI: LockInfo(exists=?, pid=?, locked_at=?)
 
@@ -182,6 +189,7 @@ sequenceDiagram
         Note over TUI: continue
     end
 
+    Note over TUI,CR: Group G2 — Cellar lookup
     TUI->>DB: exists() / create_schema()
     TUI->>CR: find("ripgrep")
     CR-->>TUI: InstalledPackageInfo or None
@@ -190,6 +198,7 @@ sequenceDiagram
         TUI-->>User: "not installed, nothing to uninstall"
         Note over TUI: return 0
     else installed
+        Note over TUI,Brew: Group G3 — Real brew uninstall execution
         TUI->>CLI: uninstall("ripgrep", on_line=_print)
         CLI->>Brew: subprocess `brew uninstall ripgrep`
         Brew-->>CLI: streamed stdout/stderr lines
