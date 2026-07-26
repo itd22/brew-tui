@@ -3,10 +3,6 @@ from dataclasses import dataclass
 from .cli_parser import Command, ParsedArgs
 from .enums import PackageState
 from .keg import Cellar
-from .installer import (
-    InstallPolicy, NoBottleError, BottleAvailabilityChecker, PolicyEnforcedInstaller,
-    make_formula_installer,
-)
 from .db import BrewDB, RealCellarReader, dedupe_infos_by_name
 from .cli_runner import BrewCLIRunner
 
@@ -21,51 +17,6 @@ class OperationResult:
     state_before: PackageState
     state_after: PackageState
     message: str = ""
-
-
-class InstallCommand(Command):
-    """`brew install [--force-bottle | --build-from-source] <name>`.
-
-    Unused: nothing constructs this. It models installing via the in-process
-    Formulary/FormulaInstaller object graph (formula.py, formulary.py,
-    installer.py) rather than shelling out to real `brew`; that graph is never
-    wired up (see those files' module docstrings). The command that's actually
-    used for `install` is RealInstallCommand below, which just calls the real
-    `brew` executable. Kept as a worked example of what a fully in-process
-    (non-shell-out) implementation would look like.
-    """
-
-    name = "install"
-
-    def __init__(self, formulary_lookup, checker: BottleAvailabilityChecker,
-                 db: "BrewDB | None" = None) -> None:
-        self.formulary_lookup = formulary_lookup  # Formulary.factory
-        self.checker = checker
-        self.db = db
-
-    def _resolve_policy(self, args: ParsedArgs) -> InstallPolicy:
-        if args.options.get("force-bottle"):
-            return InstallPolicy.FORCE_BOTTLE
-        if args.options.get("build-from-source"):
-            return InstallPolicy.BUILD_FROM_SOURCE
-        return InstallPolicy.AUTO
-
-    def run(self, args: ParsedArgs) -> int:
-        policy = self._resolve_policy(args)
-        for name in args.named_args:
-            formula = self.formulary_lookup(name)
-            installer = PolicyEnforcedInstaller(make_formula_installer(formula), self.checker)
-            try:
-                installer.install(formula, policy)
-            except NoBottleError as e:
-                print(str(e))
-                return 1
-            if self.db is not None:
-                if not self.db.exists():
-                    self.db.create_schema()
-                self.db.upsert_package(name=formula.name, version=formula.pkg_version.version,
-                                        revision=formula.pkg_version.revision)
-        return 0
 
 
 class ListCommand(Command):
