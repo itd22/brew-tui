@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,3 +15,21 @@ from pathlib import Path
 @dataclass
 class Cellar:
     path: Path
+
+    @classmethod
+    def default(cls) -> "Cellar":
+        """Resolves the real Homebrew/Linuxbrew Cellar: $HOMEBREW_CELLAR if set,
+        else the first of the usual install locations that exists on disk, else
+        the Linuxbrew default. Both BrewE2E.__init__ and BrewTUI.default() (tui.py)
+        call this directly, so it lives here rather than on either of them."""
+        env = os.environ.get("HOMEBREW_CELLAR")
+        if env:
+            return cls(Path(env))
+        for candidate in (
+            Path("/home/linuxbrew/.linuxbrew/Cellar"),
+            Path("/opt/homebrew/Cellar"),
+            Path("/usr/local/Cellar"),
+        ):
+            if candidate.exists():
+                return cls(candidate)
+        return cls(Path("/home/linuxbrew/.linuxbrew/Cellar"))

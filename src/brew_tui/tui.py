@@ -132,9 +132,9 @@ class BrewTUI:
     @classmethod
     def default(cls, **kwargs) -> "BrewTUI":
         """Wires up real collaborators the same way `BrewE2E()` does."""
-        cellar = Cellar(path=BrewE2E._default_cellar_path())
+        cellar = Cellar.default()
         reader = RealCellarReader(cellar)
-        db = BrewDB(BrewE2E._default_db_path())
+        db = BrewDB(BrewE2E.default_db_path())
         if not db.exists():
             db.create_schema()
         return cls(reader=reader, db=db, cli=BrewCLIRunner(), status=Status(), **kwargs)

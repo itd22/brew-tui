@@ -18,9 +18,9 @@ class BrewE2E(CLIParser):
     """
 
     def __init__(self, cellar_path: Path | None = None, db_path: Path | None = None) -> None:
-        self.cellar = Cellar(path=cellar_path or self._default_cellar_path())
+        self.cellar = Cellar(path=cellar_path) if cellar_path else Cellar.default()
         self.reader = RealCellarReader(self.cellar)
-        self.db = BrewDB(db_path or self._default_db_path())
+        self.db = BrewDB(db_path or self.default_db_path())
         if not self.db.exists():
             print(f"No database found at {self.db.db_path}, creating it")
             self.db.create_schema()
@@ -32,23 +32,9 @@ class BrewE2E(CLIParser):
         }
 
     @staticmethod
-    def _default_db_path() -> Path:
+    def default_db_path() -> Path:
         env = os.environ.get("HOMEBREW_DB_PATH")
         return Path(env) if env else Path.home() / ".brew_e2e" / "brew.db"
-
-    @staticmethod
-    def _default_cellar_path() -> Path:
-        env = os.environ.get("HOMEBREW_CELLAR")
-        if env:
-            return Path(env)
-        for candidate in (
-            Path("/home/linuxbrew/.linuxbrew/Cellar"),
-            Path("/opt/homebrew/Cellar"),
-            Path("/usr/local/Cellar"),
-        ):
-            if candidate.exists():
-                return candidate
-        return Path("/home/linuxbrew/.linuxbrew/Cellar")
 
     def parse(self, argv: list[str]) -> ParsedArgs:
         """Splits `argv` into a command name + its remaining args. Caller must
