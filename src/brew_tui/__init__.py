@@ -15,7 +15,7 @@ from .enums import PackageState
 from .status import LockInfo, Status
 from .e2e import BrewE2E
 
-__version__ = "0.0.18"
+__version__ = "0.0.19"
 
 __all__ = [
     "PackageState",

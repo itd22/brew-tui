@@ -2,7 +2,7 @@
 
 Diagrams below are standard UML (sequence + class) expressed in Mermaid syntax.
 
-> As of 0.0.18, `brew-tui` (no args) launches `BrewTUIApp`, a full-screen interactive
+> As of 0.0.19, `brew-tui` (no args) launches `BrewTUIApp`, a full-screen interactive
 > front-end built on [Textual](https://textual.textualize.io/). `BrewTUIApp` is a thin
 > widget layer (package table, formula input, Install/Uninstall/Refresh buttons, a
 > live output log) that drives the `BrewTUI` class documented below — the business
