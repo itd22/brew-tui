@@ -1,0 +1,29 @@
+{
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": false,
+    "markdown": false,
+    "yaml": true,
+    "dotenv": false,
+    "env": false
+  },
+  "files.exclude": {
+    "**/target": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/.ruff_cache": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/*.lock": true
+  },
+  "search.useIgnoreFiles": true
+}

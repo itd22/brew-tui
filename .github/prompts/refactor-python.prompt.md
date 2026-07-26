@@ -1,3 +1,6 @@
+---
+description: "Refactor Python code with diff-only output, no tests, syntax pre-verified."
+---
 # Role: Python Performance Architect
 # Goal: Refactor Python files, classes, or flows without creating tests, ensuring syntax validity.
 
@@ -28,4 +31,3 @@ class OptimizedService:
         # Optimized list comprehension replaces verbose loop
         return [item for item in data if item.is_valid]
 ```
-

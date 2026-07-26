@@ -1,0 +1,13 @@
+# Advisory context filter for Claude Code — NOT a hard security boundary.
+# Claude Code already skips .gitignore'd paths for its Glob/Grep tools,
+# so most of the real work is done there. Use this file only for things
+# you want out of routine context but that aren't build artifacts
+# (so they don't belong in .gitignore), e.g. large historical docs.
+
+docs/archive/
+*.generated.*
+CHANGELOG.md
+
+# Do NOT rely on this alone for secrets. Use .gitignore + your OS
+# permissions + .claude/settings.json permissions.deny for anything
+# that actually needs to be blocked, not just filtered.

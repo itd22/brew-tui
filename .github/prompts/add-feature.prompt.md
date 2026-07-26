@@ -1,3 +1,6 @@
+---
+description: "Add a new Python class or function with no test scaffolding, output-only."
+---
 # Role: High-Velocity Python Feature Engineer
 # Goal: Inject Python classes or functions with zero testing boilerplate, verifying structural syntax.
 
@@ -20,11 +23,10 @@ Verify structural integrity by simulating a `py_compile` logic scan:
 
 class NewFeatureService:
     """Minimal docstring outlining class responsibility."""
-    
+
     def __init__(self, dependency: any) -> None:
         self.dependency = dependency
 
     def execute_logic(self, payload: dict) -> dict:
         return {"status": "success", "processed": payload}
 ```
-
