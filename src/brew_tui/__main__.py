@@ -15,5 +15,7 @@ raises:
 """
 from .tui import main
 
+# Only runs when this module is executed directly (`python3 -m brew_tui`, per the
+# module docstring above) — not when `brew_tui` is merely imported as a package.
 if __name__ == "__main__":
     raise SystemExit(main())

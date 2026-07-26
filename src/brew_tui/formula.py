@@ -1,3 +1,16 @@
+"""Unused: no live code path in this package imports from here (only other
+unused files — formulary.py, installer.py, keg.py's TYPE_CHECKING-only import —
+reference it).
+
+Models Homebrew's Formula base class (Library/Homebrew/formula.rb) — the
+abstract type every generated formula (e.g. a `Meld` class) would inherit from
+in an in-process implementation: name, tap, version, license, and the
+install()/recursive_dependencies() a concrete formula must define. The actual
+implementation never instantiates formulas in-process; it reads
+INSTALL_RECEIPT.json off disk (RealCellarReader in db.py) and shells out to the
+real `brew` executable (BrewCLIRunner in cli_runner.py) instead. Kept as a
+structural reference for what an in-process model would look like.
+"""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path

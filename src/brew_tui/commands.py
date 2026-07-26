@@ -24,7 +24,16 @@ class OperationResult:
 
 
 class InstallCommand(Command):
-    """`brew install [--force-bottle | --build-from-source] <name>`."""
+    """`brew install [--force-bottle | --build-from-source] <name>`.
+
+    Unused: nothing constructs this. It models installing via the in-process
+    Formulary/FormulaInstaller object graph (formula.py, formulary.py,
+    installer.py) rather than shelling out to real `brew`; that graph is never
+    wired up (see those files' module docstrings). The command that's actually
+    used for `install` is RealInstallCommand below, which just calls the real
+    `brew` executable. Kept as a worked example of what a fully in-process
+    (non-shell-out) implementation would look like.
+    """
 
     name = "install"
 
@@ -60,7 +69,13 @@ class InstallCommand(Command):
 
 
 class ListCommand(Command):
-    """`brew list` with no arguments: prints installed formula names from the Cellar."""
+    """`brew list` with no arguments: prints installed formula names from the Cellar.
+
+    Unused: nothing constructs this. It only lists directory names under the
+    Cellar path; RealListCommand below is what's actually used for `list` — it
+    also parses each INSTALL_RECEIPT.json for version/tap/method and syncs BrewDB.
+    Kept as the minimal version of "what's installed" for reference.
+    """
 
     name = "list"
 
@@ -81,14 +96,23 @@ class ListCommand(Command):
         return 0
 
 
-class StoreDbCommand(Command):
-    """`BrewE2E store-db`: creates the DB if missing, syncs it from real INSTALL_RECEIPT.json files."""
+class RealCellarCommand(Command):
+    """Base for every command that operates against the real Cellar + BrewDB.
 
-    name = "store-db"
+    StoreDbCommand, RealListCommand, RealInstallCommand, and ListCompareCommand
+    all took the identical (reader, db) constructor pair — pulling it up here
+    means they now inherit it instead of each repeating the same __init__.
+    """
 
     def __init__(self, reader: RealCellarReader, db: BrewDB) -> None:
         self.reader = reader
         self.db = db
+
+
+class StoreDbCommand(RealCellarCommand):
+    """`BrewE2E store-db`: creates the DB if missing, syncs it from real INSTALL_RECEIPT.json files."""
+
+    name = "store-db"
 
     def run(self, args: ParsedArgs) -> int:
         if not self.db.exists():
@@ -99,15 +123,11 @@ class StoreDbCommand(Command):
         return 0
 
 
-class RealListCommand(Command):
+class RealListCommand(RealCellarCommand):
     """`BrewE2E list`: reads real INSTALL_RECEIPT.json files, prints them, and syncs the DB
     (adds new packages, updates changed ones, marks vanished ones 'removed' but keeps the row)."""
 
     name = "list"
-
-    def __init__(self, reader: RealCellarReader, db: BrewDB) -> None:
-        self.reader = reader
-        self.db = db
 
     def run(self, args: ParsedArgs) -> int:
         infos = dedupe_infos_by_name(self.reader.scan())
@@ -126,7 +146,7 @@ class RealListCommand(Command):
         return 0
 
 
-class RealInstallCommand(Command):
+class RealInstallCommand(RealCellarCommand):
     """`BrewE2E install <name>`: checks the DB, then real Cellar jsons, then — only if
     genuinely not installed — calls the real `brew install <name>` executable."""
 
@@ -134,8 +154,7 @@ class RealInstallCommand(Command):
 
     def __init__(self, reader: RealCellarReader, db: BrewDB, cli: BrewCLIRunner,
                  on_brew_output=None) -> None:
-        self.reader = reader
-        self.db = db
+        super().__init__(reader, db)
         self.cli = cli
         self.on_brew_output = on_brew_output  # optional sink for live `brew` output (e.g. TUI pane)
 
@@ -166,14 +185,13 @@ class RealInstallCommand(Command):
         return 0
 
 
-class ListCompareCommand(Command):
+class ListCompareCommand(RealCellarCommand):
     """`BrewE2E list_compare`: compares DB vs real INSTALL_RECEIPT.json vs actual `brew list`."""
 
     name = "list_compare"
 
     def __init__(self, reader: RealCellarReader, db: BrewDB, cli: BrewCLIRunner) -> None:
-        self.reader = reader
-        self.db = db
+        super().__init__(reader, db)
         self.cli = cli
 
     def run(self, args: ParsedArgs) -> int:

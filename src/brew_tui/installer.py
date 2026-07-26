@@ -1,3 +1,15 @@
+"""Unused: no live code path in this package imports from here (only
+commands.py's own unused InstallCommand references it).
+
+Models Homebrew's FormulaInstaller (Library/Homebrew/formula_installer.rb) and
+the bottle-vs-compile decision it makes (PR #10788): given a resolved Formula,
+fetch it, then either pour a prebuilt bottle or compile from source, then link
+the Keg and write its Tab. In this project that whole orchestration is replaced
+by one subprocess call to the real `brew install <name>` (BrewCLIRunner in
+cli_runner.py) — `brew` itself makes the bottle-vs-compile decision, so nothing
+here needs reimplementing it. Kept as a structural reference for what an
+in-process installer + policy layer would look like.
+"""
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 

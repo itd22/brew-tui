@@ -6,6 +6,14 @@ from .formula import PkgVersion
 
 
 # --- Cellar / Keg: Library/Homebrew/keg.rb ---
+#
+# `Cellar` below is live — it's the (path,) wrapper every module in this package
+# constructs and passes around. `Keg` and `Tab` further down are NOT: nothing
+# instantiates or subclasses them. RealCellarReader (db.py) reads the same
+# on-disk data (a formula's version dir + its INSTALL_RECEIPT.json) directly
+# into a plain InstalledPackageInfo dataclass instead of these Homebrew-shaped
+# Keg/Tab types. Kept as a structural reference for what a closer-to-Homebrew
+# in-process model would look like.
 
 @dataclass
 class Cellar:

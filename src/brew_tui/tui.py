@@ -395,5 +395,10 @@ def main() -> int:
     return 0
 
 
+# Lets this file double as a standalone script (`python3 -m brew_tui.tui`, or
+# just `python3 tui.py`) in addition to its two normal entry points: the
+# `brew-tui` console script (pyproject.toml: brew-tui = "brew_tui.tui:main") and
+# `brew_tui/__main__.py`'s `from .tui import main` (for `python3 -m brew_tui`).
+# Only this direct-execution case reaches the block below.
 if __name__ == "__main__":
     sys.exit(main())

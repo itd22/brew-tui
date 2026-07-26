@@ -57,5 +57,8 @@ class BrewE2E:
         return command.run(ParsedArgs(command_name=command_name, named_args=rest))
 
 
+# Lets this file double as a standalone script (`python3 -m brew_tui.e2e install
+# ripgrep`) as well as being imported normally (`from .e2e import BrewE2E`, used
+# by tui.py and __init__.py) — the block below only runs in the former case.
 if __name__ == "__main__":
     sys.exit(BrewE2E().run(sys.argv[1:]))
