@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .formula import Formula
+    from ..formula import Formula
 
 
 # --- Dependency resolution: Library/Homebrew/dependency*.rb ---

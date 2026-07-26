@@ -1,5 +1,6 @@
-"""Unused: no live code path in this package imports from here (only
-commands.py's own unused InstallCommand references it).
+"""Unused: no live code path in this package imports from here. (Previously also
+referenced by commands.py's InstallCommand, which has since been removed —
+nothing anywhere constructs it now.)
 
 Models Homebrew's FormulaInstaller (Library/Homebrew/formula_installer.rb) and
 the bottle-vs-compile decision it makes (PR #10788): given a resolved Formula,
@@ -13,7 +14,7 @@ in-process installer + policy layer would look like.
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
-from .formula import Formula
+from ..formula import Formula
 
 
 # --- FormulaInstaller: Library/Homebrew/formula_installer.rb (orchestrator) ---
