@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from .cli_parser import Command, ParsedArgs
 from .enums import PackageState
-from .keg import Cellar
 from .db import BrewDB, RealCellarReader, dedupe_infos_by_name
 from .cli_runner import BrewCLIRunner
 
@@ -17,34 +16,6 @@ class OperationResult:
     state_before: PackageState
     state_after: PackageState
     message: str = ""
-
-
-class ListCommand(Command):
-    """`brew list` with no arguments: prints installed formula names from the Cellar.
-
-    Unused: nothing constructs this. It only lists directory names under the
-    Cellar path; RealListCommand below is what's actually used for `list` — it
-    also parses each INSTALL_RECEIPT.json for version/tap/method and syncs BrewDB.
-    Kept as the minimal version of "what's installed" for reference.
-    """
-
-    name = "list"
-
-    def __init__(self, cellar: Cellar) -> None:
-        self.cellar = cellar
-
-    def _installed_formula_names(self) -> list[str]:
-        if not self.cellar.path.exists():
-            return []
-        return sorted(
-            p.name for p in self.cellar.path.iterdir()
-            if p.is_dir() and not p.name.startswith(".")
-        )
-
-    def run(self, args: ParsedArgs) -> int:
-        for name in self._installed_formula_names():
-            print(name)
-        return 0
 
 
 class RealCellarCommand(Command):

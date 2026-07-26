@@ -4,12 +4,14 @@ from dataclasses import dataclass, field
 
 # --- bin/brew + Homebrew::CLI::Parser -> cmd/install.rb, cmd/uninstall.rb, cmd/update.rb ---
 #
-# `ParsedArgs` and `Command` below are live — every command in commands.py
-# extends `Command`, and `BrewTUI.run()`/`BrewE2E.run()` build a `ParsedArgs`
-# by hand from argv. `CLIParser` itself is NOT: nothing subclasses it. Real argv
-# parsing is a few lines of manual `command_name, *rest = argv` splitting in
-# tui.py/e2e.py rather than a dedicated parser class. Kept as a structural
-# reference for what a real flag/option parser would plug in as.
+# All three of these are live: every command in commands.py extends `Command`;
+# `BrewE2E` (e2e.py) extends `CLIParser`, implementing `parse()` as the same
+# argv-splitting logic that used to live inline in its `run()`. `BrewTUI.run()`
+# (tui.py) still does its own small inline `command_name, *rest = argv` split
+# rather than going through a `CLIParser` — it dispatches straight to
+# install()/uninstall()/list_installed() and never builds a `ParsedArgs` at all,
+# so adopting `CLIParser` there would mean also adopting the `Command`/
+# `ParsedArgs` object model, not just extracting a parse step.
 
 class CLIParser(ABC):
     """Mirrors Homebrew::CLI::Parser: parses argv into a command + flags."""

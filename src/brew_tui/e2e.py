@@ -2,15 +2,20 @@ import os
 import sys
 from pathlib import Path
 
-from .cli_parser import Command, ParsedArgs
+from .cli_parser import CLIParser, Command, ParsedArgs
 from .keg import Cellar
 from .db import BrewDB, RealCellarReader
 from .cli_runner import BrewCLIRunner
 from .commands import RealListCommand, StoreDbCommand, RealInstallCommand, ListCompareCommand
 
 
-class BrewE2E:
-    """Real, scriptable entry point, backed by the actual Homebrew/Linuxbrew Cellar on disk."""
+class BrewE2E(CLIParser):
+    """Real, scriptable entry point, backed by the actual Homebrew/Linuxbrew Cellar on disk.
+
+    Also fills the `CLIParser` role (cli_parser.py) — its argv-splitting logic used
+    to live inline in `run()`; `parse()` below is that same logic, just extracted
+    to satisfy `CLIParser`'s one abstract method.
+    """
 
     def __init__(self, cellar_path: Path | None = None, db_path: Path | None = None) -> None:
         self.cellar = Cellar(path=cellar_path or self._default_cellar_path())
@@ -45,16 +50,22 @@ class BrewE2E:
                 return candidate
         return Path("/home/linuxbrew/.linuxbrew/Cellar")
 
+    def parse(self, argv: list[str]) -> ParsedArgs:
+        """Splits `argv` into a command name + its remaining args. Caller must
+        ensure `argv` is non-empty (see the `if not argv` guard in `run()`)."""
+        command_name, *rest = argv
+        return ParsedArgs(command_name=command_name, named_args=rest)
+
     def run(self, argv: list[str]) -> int:
         if not argv:
             print("usage: BrewE2E <command> [args...]")
             return 1
-        command_name, *rest = argv
-        command = self.commands.get(command_name)
+        parsed = self.parse(argv)
+        command = self.commands.get(parsed.command_name)
         if command is None:
-            print(f"Unknown command: {command_name}")
+            print(f"Unknown command: {parsed.command_name}")
             return 1
-        return command.run(ParsedArgs(command_name=command_name, named_args=rest))
+        return command.run(parsed)
 
 
 # Lets this file double as a standalone script (`python3 -m brew_tui.e2e install

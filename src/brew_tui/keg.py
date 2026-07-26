@@ -14,6 +14,3 @@ from pathlib import Path
 @dataclass
 class Cellar:
     path: Path
-
-    def rack_for(self, name: str) -> Path:
-        ...
