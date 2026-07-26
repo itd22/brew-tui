@@ -14,7 +14,7 @@ in-process installer + policy layer would look like.
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
-from ..formula import Formula
+from .formula import Formula
 
 
 # --- FormulaInstaller: Library/Homebrew/formula_installer.rb (orchestrator) ---

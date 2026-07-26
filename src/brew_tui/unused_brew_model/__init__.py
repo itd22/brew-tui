@@ -5,12 +5,13 @@ wired into brew-tui's actual implementation.
     tap.py         -> Library/Homebrew/tap.rb
     spec.py        -> Library/Homebrew/software_spec.rb, resource.rb, download_strategy.rb
     dependency.py  -> Library/Homebrew/dependency.rb, dependency_collector.rb
+    formula.py     -> Library/Homebrew/formula.rb
     formulary.py   -> Library/Homebrew/formulary.rb
     installer.py   -> Library/Homebrew/formula_installer.rb (+ bottle-vs-compile
                        policy from PR #10788)
-
-(`formula.py`, which these all revolve around, stays at the package root — it's
-imported by `keg.py` too, which is partially live.)
+    keg_model.py   -> Library/Homebrew/keg.rb, tab.rb (the Keg/Tab half of
+                       keg.rb; the plain `Cellar` path-wrapper half of that same
+                       real file stayed live, at src/brew_tui/keg.py)
 
 None of `tui.py` / `e2e.py` / `commands.py`'s real command classes import from
 here. The live implementation (`RealCellarReader` + `BrewCLIRunner`, in

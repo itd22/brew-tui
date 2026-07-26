@@ -11,7 +11,7 @@ Kept as a structural reference for what that resolution step would look like.
 """
 from abc import ABC, abstractmethod
 
-from ..formula import Formula
+from .formula import Formula
 
 
 # --- Formulary: Library/Homebrew/formulary.rb (factory/loader) ---

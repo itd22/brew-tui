@@ -1,6 +1,7 @@
-"""Unused: no live code path in this package imports from here (only other
-unused files — formulary.py, installer.py, keg.py's TYPE_CHECKING-only import —
-reference it).
+"""Unused: no live code path in this package imports from here (only sibling
+files in this subpackage — formulary.py, installer.py, dependency.py's
+TYPE_CHECKING-only import — and keg_model.py's `Keg.version: PkgVersion`
+annotation reference it).
 
 Models Homebrew's Formula base class (Library/Homebrew/formula.rb) — the
 abstract type every generated formula (e.g. a `Meld` class) would inherit from
@@ -15,9 +16,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from .unused_brew_model.tap import Tap
-from .unused_brew_model.spec import SoftwareSpec
-from .unused_brew_model.dependency import Dependency
+from .tap import Tap
+from .spec import SoftwareSpec
+from .dependency import Dependency
 
 
 # --- Formula: Library/Homebrew/formula.rb (abstract base for every *.rb formula file) ---
