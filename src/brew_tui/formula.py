@@ -15,9 +15,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from .tap import Tap
-from .spec import SoftwareSpec
-from .dependency import Dependency
+from .unused_brew_model.tap import Tap
+from .unused_brew_model.spec import SoftwareSpec
+from .unused_brew_model.dependency import Dependency
 
 
 # --- Formula: Library/Homebrew/formula.rb (abstract base for every *.rb formula file) ---
