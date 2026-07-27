@@ -58,4 +58,4 @@ class BrewE2E(CLIParser):
 # ripgrep`) as well as being imported normally (`from .e2e import BrewE2E`, used
 # by tui.py and __init__.py) — the block below only runs in the former case.
 if __name__ == "__main__":
-    sys.exit(BrewE2E().run(sys.argv[1:]))
+    sys.exit(BrewE2E(cellar=Cellar.default()).run(sys.argv[1:]))
