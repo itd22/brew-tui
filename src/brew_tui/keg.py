@@ -33,3 +33,12 @@ class Cellar:
             if candidate.exists():
                 return cls(candidate)
         return cls(Path("/home/linuxbrew/.linuxbrew/Cellar"))
+
+    def formula_dirs(self) -> list[Path]:
+        """Every formula's own directory directly under the Cellar (each one a
+        'rack' holding that formula's installed version dirs), sorted by name.
+        Empty list if the Cellar path doesn't exist. RealCellarReader.scan()
+        (db.py) uses this instead of walking `self.cellar.path` itself."""
+        if not self.path.exists():
+            return []
+        return sorted(p for p in self.path.iterdir() if p.is_dir())

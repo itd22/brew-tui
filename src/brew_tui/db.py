@@ -75,11 +75,7 @@ class RealCellarReader:
 
     def scan(self) -> list[InstalledPackageInfo]:
         infos: list[InstalledPackageInfo] = []
-        if not self.cellar.path.exists():
-            return infos
-        for formula_dir in sorted(self.cellar.path.iterdir()):
-            if not formula_dir.is_dir():
-                continue
+        for formula_dir in self.cellar.formula_dirs():
             for version_dir in sorted(formula_dir.iterdir()):
                 receipt = version_dir / "INSTALL_RECEIPT.json"
                 if not receipt.is_file():
