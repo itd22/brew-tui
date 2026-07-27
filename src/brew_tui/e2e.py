@@ -17,8 +17,8 @@ class BrewE2E(CLIParser):
     to satisfy `CLIParser`'s one abstract method.
     """
 
-    def __init__(self, cellar: Cellar | None = None, db_path: Path | None = None) -> None:
-        self.cellar = cellar or Cellar.default()
+    def __init__(self, cellar: Cellar, db_path: Path | None = None) -> None:
+        self.cellar = cellar
         self.reader = RealCellarReader(self.cellar)
         self.db = BrewDB(db_path or self.default_db_path())
         if not self.db.exists():

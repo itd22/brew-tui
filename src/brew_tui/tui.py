@@ -131,7 +131,7 @@ class BrewTUI:
 
     @classmethod
     def default(cls, **kwargs) -> "BrewTUI":
-        """Wires up real collaborators the same way `BrewE2E()` does."""
+        """Wires up real collaborators the same way `BrewE2E(cellar=Cellar.default())` does."""
         cellar = Cellar.default()
         reader = RealCellarReader(cellar)
         db = BrewDB(BrewE2E.default_db_path())

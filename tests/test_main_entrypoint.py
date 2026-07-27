@@ -9,15 +9,16 @@ Caused by `python3 -m brew_tui.tui` (or `uv run python -m brew_tui.tui`, etc.):
 package-import time, so by the time runpy went to execute `brew_tui.tui` as
 `__main__`, it was already sitting in `sys.modules` under its normal name. The same
 bug independently existed for `python -m brew_tui.e2e` (`__init__.py` also did
-`from .e2e import BrewE2E` eagerly) — caught while testing 0.0.20's `BrewE2E(cellar=
-Cellar.default())` change, fixed the same way.
+`from .e2e import BrewE2E` eagerly).
 
-Fixed at the actual source: `__init__.py` now imports `.tui` AND `.e2e` lazily via a
-PEP 562 module `__getattr__`, so importing the `brew_tui` package doesn't touch
-either at all — `python -m brew_tui.tui` (the exact command from the bug report) and
-`python -m brew_tui.e2e` both now run clean. `brew_tui/__main__.py` (added in 0.0.12)
-still exists too, so `python -m brew_tui` also works, but it was never the fix for
-this — the lazy import is.
+Fixed at the actual source, without any lazy-import trickery: `__init__.py` simply
+doesn't import from `.tui` or `.e2e` at all anymore (no eager import, no PEP 562
+`__getattr__` either) — so importing the `brew_tui` package never touches either
+module, and `python -m brew_tui.tui` / `python -m brew_tui.e2e` both run clean.
+`BrewTUI`/`BrewTUIApp`/`BrewE2E` are no longer package-level names; import them from
+their own submodules (`from brew_tui.tui import BrewTUI, BrewTUIApp`, `from
+brew_tui.e2e import BrewE2E`). `brew_tui/__main__.py` (added in 0.0.12) still exists
+too, so `python -m brew_tui` also works, but it was never the fix for this.
 """
 import subprocess
 import sys
@@ -52,12 +53,25 @@ def test_python_dash_m_brew_tui_does_not_warn():
     assert "RuntimeWarning" not in result.stderr
 
 
-def test_lazy_imports_still_expose_brewtui_brewtuiapp_brewe2e():
-    """`from brew_tui import BrewTUI, BrewTUIApp, BrewE2E` must still work —
-    __getattr__ should import `.tui`/`.e2e` lazily on first access, not remove
-    the names."""
+def test_brewtui_brewtuiapp_brewe2e_importable_from_their_own_submodules():
+    """No longer re-exported at package level — must be imported directly from
+    `brew_tui.tui` / `brew_tui.e2e`."""
     result = subprocess.run(
-        [sys.executable, "-c", "from brew_tui import BrewTUI, BrewTUIApp, BrewE2E"],
+        [sys.executable, "-c",
+         "from brew_tui.tui import BrewTUI, BrewTUIApp; from brew_tui.e2e import BrewE2E"],
+        capture_output=True, text=True, timeout=30,
+        env={"PYTHONPATH": str(REPO_ROOT / "src")},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_brewtui_brewe2e_not_package_level_names():
+    """Confirms __init__.py really doesn't import .tui/.e2e at all anymore —
+    not even lazily."""
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import brew_tui; assert not hasattr(brew_tui, 'BrewTUI'); "
+         "assert not hasattr(brew_tui, 'BrewE2E')"],
         capture_output=True, text=True, timeout=30,
         env={"PYTHONPATH": str(REPO_ROOT / "src")},
     )
